@@ -60,11 +60,14 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
             throw new IllegalArgumentException(String.format("nThreads: %d (expected: > 0)", nThreads));
         }
 
+        // ThreadPerTaskExecutor  每个 Runnable一个分配一个线程，
+        // executor会被赋到SingleThreadEventExecutor
         if (executor == null) {
             executor = new ThreadPerTaskExecutor(newDefaultThreadFactory());
         }
 
         children = new EventExecutor[nThreads];
+        // 不同的EventExecutor 选择器。
         if (isPowerOfTwo(children.length)) {
             chooser = new PowerOfTwoEventExecutorChooser();
         } else {
@@ -74,6 +77,7 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
         for (int i = 0; i < nThreads; i ++) {
             boolean success = false;
             try {
+                // 根据设置的线程数来构造相应数量的EventExecutor，如NioEventLoopGroup--> NioEventLoop
                 children[i] = newChild(executor, args);
                 success = true;
             } catch (Exception e) {
@@ -110,10 +114,12 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
             }
         };
 
+        // 给每个child加中断监听器
         for (EventExecutor e: children) {
             e.terminationFuture().addListener(terminationListener);
         }
 
+        // 返回一个不可修改的children引用
         Set<EventExecutor> childrenSet = new LinkedHashSet<EventExecutor>(children.length);
         Collections.addAll(childrenSet, children);
         readonlyChildren = Collections.unmodifiableSet(childrenSet);

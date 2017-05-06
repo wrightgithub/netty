@@ -301,10 +301,12 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     @Override
     protected void run() {
         for (;;) {
+            // 初始设置为false
             boolean oldWakenUp = wakenUp.getAndSet(false);
             try {
-                if (hasTasks()) {
-                    selectNow();
+                // 唤醒select
+                if (hasTasks()) {// 任务队列不等于空
+                    selectNow();// 有任务则唤醒，去处理task
                 } else {
                     select(oldWakenUp);
 
@@ -419,6 +421,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             return;
         }
 
+        // 遍历每个 SelectionKey
         Iterator<SelectionKey> i = selectedKeys.iterator();
         for (;;) {
             final SelectionKey k = i.next();
@@ -507,7 +510,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             // Also check for readOps of 0 to workaround possible JDK bug which may otherwise lead
             // to a spin loop
             if ((readyOps & (SelectionKey.OP_READ | SelectionKey.OP_ACCEPT)) != 0 || readyOps == 0) {
-                unsafe.read();
+                unsafe.read();// 执行读  比如最终会在channelpipeline终找到 EchoServerHandler执行读
                 if (!ch.isOpen()) {
                     // Connection already closed - no need to handle write.
                     return;
@@ -609,6 +612,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             long currentTimeNanos = System.nanoTime();
             long selectDeadLineNanos = currentTimeNanos + delayNanos(currentTimeNanos);
             for (;;) {
+                // 1.定时任务截至事时间快到了，中断本次轮询
                 long timeoutMillis = (selectDeadLineNanos - currentTimeNanos + 500000L) / 1000000L;
                 if (timeoutMillis <= 0) {
                     if (selectCnt == 0) {
@@ -618,14 +622,17 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                     break;
                 }
 
+                // 2.阻塞式select操作
+                // 此处可能由于java nio bug 而select过早返回或者直接不阻塞，这样会产生cpu空转，cpu 100%
                 int selectedKeys = selector.select(timeoutMillis);
                 selectCnt ++;
 
+                // 3.一下四中情况跳出轮询
                 if (selectedKeys != 0 || oldWakenUp || wakenUp.get() || hasTasks() || hasScheduledTasks()) {
-                    // - Selected something,
-                    // - waken up by user, or
-                    // - the task queue has a pending task.
-                    // - a scheduled task is ready for processing
+                    // - Selected something, 有事件注册进来
+                    // - waken up by user, or  被用户唤醒(wakenUp.get()为true)
+                    // - the task queue has a pending task.  有任务了(任务队列不为空)
+                    // - a scheduled task is ready for processing  第一个定时任务即将要被执行
                     break;
                 }
                 if (Thread.interrupted()) {
@@ -645,16 +652,18 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
                 long time = System.nanoTime();
                 if (time - TimeUnit.MILLISECONDS.toNanos(timeoutMillis) >= currentTimeNanos) {
-                    // timeoutMillis elapsed without anything selected.
+                    // timeoutMillis elapsed without anything selected. 正常超时
                     selectCnt = 1;
                 } else if (SELECTOR_AUTO_REBUILD_THRESHOLD > 0 &&
                         selectCnt >= SELECTOR_AUTO_REBUILD_THRESHOLD) {
                     // The selector returned prematurely many times in a row.
                     // Rebuild the selector to work around the problem.
+                    // select 过早返回，通过判断连续过早返回的次数来进行select重建，在一定程度上解决 nio bug
                     logger.warn(
                             "Selector.select() returned prematurely {} times in a row; rebuilding selector.",
                             selectCnt);
 
+                    // 通过重新创建一个selector 来规避问题，当然不能彻底解决，可能一段时间之后还会出现，那就继续重建。
                     rebuildSelector();
                     selector = this.selector;
 

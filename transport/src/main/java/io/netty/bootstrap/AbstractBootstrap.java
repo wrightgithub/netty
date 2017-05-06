@@ -47,7 +47,7 @@ import java.util.Map;
  */
 public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C extends Channel> implements Cloneable {
 
-    volatile EventLoopGroup group;
+    volatile EventLoopGroup group;//主线程，reactor线程池中用于处理连接
     @SuppressWarnings("deprecation")
     private volatile ChannelFactory<? extends C> channelFactory;
     private volatile SocketAddress localAddress;

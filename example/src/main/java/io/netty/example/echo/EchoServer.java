@@ -50,11 +50,12 @@ public final class EchoServer {
 
         // Configure the server.
         EventLoopGroup bossGroup = new NioEventLoopGroup(1);
-        EventLoopGroup workerGroup = new NioEventLoopGroup();
+        EventLoopGroup workerGroup = new NioEventLoopGroup();//默认线程数
         try {
             ServerBootstrap b = new ServerBootstrap();
+            // AbstractBootstrap:group  存主线程池 ServerBootstrap:childGroup 存子线程池
             b.group(bossGroup, workerGroup)
-             .channel(NioServerSocketChannel.class)
+             .channel(NioServerSocketChannel.class)// 根据反射生成channel实例  在bind时会调用newChannel方法
              .option(ChannelOption.SO_BACKLOG, 100)
              .handler(new LoggingHandler(LogLevel.INFO))
              .childHandler(new ChannelInitializer<SocketChannel>() {
@@ -69,7 +70,7 @@ public final class EchoServer {
                  }
              });
 
-            // Start the server.
+            // Start the server. sync:等待直到完成
             ChannelFuture f = b.bind(PORT).sync();
 
             // Wait until the server socket is closed.

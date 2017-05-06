@@ -29,19 +29,22 @@ public class DiscardClientHandler extends SimpleChannelInboundHandler<Object> {
     private ByteBuf content;
     private ChannelHandlerContext ctx;
 
+    // 连接刚建立的时候调用一次
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
         this.ctx = ctx;
 
         // Initialize the message.
         content = ctx.alloc().directBuffer(DiscardClient.SIZE).writeZero(DiscardClient.SIZE);
-
+        System.out.println("only one time ");
         // Send the initial messages.
         generateTraffic();
     }
 
+    // 连接断开的时候调用一次
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
+        System.out.println("channelInactive");
         content.release();
     }
 
